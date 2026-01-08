@@ -105,6 +105,20 @@
       color:var(--muted);
     }
     .pill strong{color:var(--text); font-weight:600}
+    .status-pill{min-width:180px; justify-content:center}
+    .status-pill .spinner{
+      width:12px; height:12px;
+      border-radius:50%;
+      border:2px solid #e5e7eb;
+      border-top-color:#60a5fa;
+      display:none;
+      animation: spin 0.9s linear infinite;
+    }
+    .status-pill.loading{color:#1d4ed8; border-color:#93c5fd; background:#eff6ff}
+    .status-pill.loading .spinner{display:inline-block}
+    .status-pill.ok{color:#166534; border-color:#bbf7d0; background:#f0fdf4}
+    .status-pill.err{color:#b91c1c; border-color:#fecaca; background:#fef2f2}
+    @keyframes spin{to{transform:rotate(360deg)}}
 
     .grid4{
       display:grid;
@@ -145,6 +159,17 @@
       background:#fff;
       min-height:320px;
     }
+    .empty-state{
+      border:1px dashed #cbd5e1;
+      border-radius:var(--radius);
+      padding:18px;
+      background:#f8fafc;
+      color:var(--muted);
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+    }
+    .empty-state strong{color:var(--text)}
 
     table{
       width:100%;
@@ -237,7 +262,10 @@
           </div>
         </div>
 
-        <span class="pill"><span class="mono" id="statusText">Нет данных</span></span>
+        <span class="pill status-pill" id="statusPill">
+          <span class="spinner" id="statusSpinner" aria-hidden="true"></span>
+          <span class="mono" id="statusText">Нет данных</span>
+        </span>
       </div>
 
       <div class="row">
@@ -302,35 +330,42 @@
 
     <!-- Output -->
     <div id="output" style="display:none;">
-      <h2 id="stats-title">📋 Сводная статистика</h2>
-      <div class="grid4" id="general-stats"></div>
+      <div id="emptyState" class="empty-state" style="display:none;">
+        <strong>Нет данных для отображения</strong>
+        <span>Проверьте выбранные фильтры или убедитесь, что в файле есть даты заказа.</span>
+      </div>
 
-      <h2>📈 Анализ заказов по часам</h2>
-      <div class="two">
-        <div class="chart-container">
-          <canvas id="hourlyPeaksChart"></canvas>
+      <div id="resultsArea">
+        <h2 id="stats-title">📋 Сводная статистика</h2>
+        <div class="grid4" id="general-stats"></div>
+
+        <h2>📈 Анализ заказов по часам</h2>
+        <div class="two">
+          <div class="chart-container">
+            <canvas id="hourlyPeaksChart"></canvas>
+          </div>
+          <div class="chart-container">
+            <canvas id="latenessChart"></canvas>
+          </div>
         </div>
-        <div class="chart-container">
-          <canvas id="latenessChart"></canvas>
+
+        <h2>📅 Анализ по дням недели</h2>
+        <div class="table-container">
+          <table id="day-of-week-table"></table>
         </div>
-      </div>
 
-      <h2>📅 Анализ по дням недели</h2>
-      <div class="table-container">
-        <table id="day-of-week-table"></table>
-      </div>
+        <h2>🧑‍🚚 Рейтинг курьеров</h2>
+        <div class="hint" style="margin-bottom:8px">
+          Нажмите на строку курьера — включится drilldown (все показатели/графики перестроятся только по этому курьеру). Повторный клик — отключит.
+        </div>
+        <div class="table-container">
+          <table id="courier-rating-table"></table>
+        </div>
 
-      <h2>🧑‍🚚 Рейтинг курьеров</h2>
-      <div class="hint" style="margin-bottom:8px">
-        Нажмите на строку курьера — включится drilldown (все показатели/графики перестроятся только по этому курьеру). Повторный клик — отключит.
-      </div>
-      <div class="table-container">
-        <table id="courier-rating-table"></table>
-      </div>
-
-      <h2>⏱ Фазы (средние значения)</h2>
-      <div class="table-container">
-        <table id="phases-table"></table>
+        <h2>⏱ Фазы (средние значения)</h2>
+        <div class="table-container">
+          <table id="phases-table"></table>
+        </div>
       </div>
     </div>
   </div>
@@ -359,8 +394,14 @@ function toast(message, type = "info", ms = 3800){
   setTimeout(()=>{ el.style.opacity="0"; el.style.transform="translateY(6px)"; }, ms - 350);
   setTimeout(()=>{ el.remove(); }, ms);
 }
-function setStatus(text){
-  document.getElementById("statusText").textContent = text;
+function setStatus(text, state = "idle"){
+  const pill = document.getElementById("statusPill");
+  const status = document.getElementById("statusText");
+  status.textContent = text;
+  pill.classList.remove("loading", "ok", "err");
+  if (state === "loading") pill.classList.add("loading");
+  if (state === "ok") pill.classList.add("ok");
+  if (state === "err") pill.classList.add("err");
 }
 function setDrillLabel(){
   document.getElementById("drillLabel").textContent = activeDrilldownCourier ? activeDrilldownCourier : "нет";
@@ -383,6 +424,22 @@ function parseDateTime(d){
 
   // If Excel gave us a Date object:
   if (d instanceof Date && !isNaN(d.getTime())) return d;
+
+  // If Excel gave us a serial number (XLSX) or numeric string
+  if (typeof d === "number" && isFinite(d)){
+    const excelEpoch = new Date(Date.UTC(1899, 11, 30));
+    const ms = Math.round(d * 86400000);
+    return new Date(excelEpoch.getTime() + ms);
+  }
+
+  if (/^\d+(\.\d+)?$/.test(s)){
+    const num = Number(s);
+    if (isFinite(num)){
+      const excelEpoch = new Date(Date.UTC(1899, 11, 30));
+      const ms = Math.round(num * 86400000);
+      return new Date(excelEpoch.getTime() + ms);
+    }
+  }
 
   // normalize common formats: "DD.MM.YYYY HH:MM:SS" or "DD.MM.YYYY HH:MM"
   // also accept "YYYY-MM-DD HH:MM:SS"
@@ -479,12 +536,12 @@ document.getElementById("btnClear").addEventListener("click", ()=>{
 
 function handleFileUpload(file){
   const name = file.name.toLowerCase();
-  setStatus("Загрузка…");
+  setStatus("Загрузка…", "loading");
   setEnabled(false);
 
   const reader = new FileReader();
   reader.onerror = () => {
-    setStatus("Ошибка чтения файла");
+    setStatus("Ошибка чтения файла", "err");
     toast("Не удалось прочитать файл", "err");
     setEnabled(false);
   };
@@ -493,9 +550,9 @@ function handleFileUpload(file){
     try{
       if (name.endsWith(".xlsx")){
         const data = new Uint8Array(evt.target.result);
-        const wb = XLSX.read(data, { type:"array" });
+        const wb = XLSX.read(data, { type:"array", cellDates:true });
         const ws = wb.Sheets[wb.SheetNames[0]];
-        const json = XLSX.utils.sheet_to_json(ws, { defval:"" });
+        const json = XLSX.utils.sheet_to_json(ws, { defval:"", raw:false });
         allData = json;
       } else {
         const text = String(evt.target.result || "");
@@ -503,13 +560,13 @@ function handleFileUpload(file){
       }
 
       if (!allData.length){
-        setStatus("Файл пустой / не распознан");
+        setStatus("Файл пустой / не распознан", "err");
         toast("Не нашёл строк данных в файле", "err");
         setEnabled(false);
         return;
       }
 
-      setStatus(`Загружено строк: ${allData.length}`);
+      setStatus(`Готово • ${file.name} (${allData.length})`, "ok");
       toast(`Файл загружен: ${file.name} (строк: ${allData.length})`, "ok");
       setEnabled(true);
       document.getElementById("btnClear").disabled = false;
@@ -519,7 +576,7 @@ function handleFileUpload(file){
 
     } catch (err){
       console.error(err);
-      setStatus("Ошибка обработки файла");
+      setStatus("Ошибка обработки файла", "err");
       toast("Ошибка обработки файла. Проверь структуру колонок.", "err");
       setEnabled(false);
     }
@@ -576,6 +633,19 @@ function parseCSV(text){
   return out;
 }
 
+function normalizeKey(key){
+  return String(key)
+    .replace(/\uFEFF/g, "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+}
+
+function getRowValue(row, normalizedRow, name){
+  if (Object.prototype.hasOwnProperty.call(row, name)) return row[name];
+  return normalizedRow.get(normalizeKey(name));
+}
+
 /* =======================
    Filters UI
 ======================= */
@@ -625,14 +695,19 @@ function preprocessAllRows(){
   // Required columns (by name as in your original):
   // 'Обещанное время', 'Принятие заказа в ресторане', 'Приготовление', 'Передача курьеру', 'Передан гостю', 'Общее время доставки заказа', 'ФИО Курьера'
   return allData.map(row=>{
-    const promised = parseDateTime(row["Обещанное время"]);
-    const accepted = parseDateTime(row["Принятие заказа в ресторане"]);
-    const prepared = parseDateTime(row["Приготовление"]);
-    const handedOver = parseDateTime(row["Передача курьеру"]);
-    const handedToGuest = parseDateTime(row["Передан гостю"]);
-    const totalDeliveryTime = parseDateTime(row["Общее время доставки заказа"]);
+    const normalizedRow = new Map();
+    Object.entries(row).forEach(([key, value])=>{
+      normalizedRow.set(normalizeKey(key), value);
+    });
 
-    const courierNameRaw = (row["ФИО Курьера"] ?? "").toString().trim();
+    const promised = parseDateTime(getRowValue(row, normalizedRow, "Обещанное время"));
+    const accepted = parseDateTime(getRowValue(row, normalizedRow, "Принятие заказа в ресторане"));
+    const prepared = parseDateTime(getRowValue(row, normalizedRow, "Приготовление"));
+    const handedOver = parseDateTime(getRowValue(row, normalizedRow, "Передача курьеру"));
+    const handedToGuest = parseDateTime(getRowValue(row, normalizedRow, "Передан гостю"));
+    const totalDeliveryTime = parseDateTime(getRowValue(row, normalizedRow, "Общее время доставки заказа"));
+
+    const courierNameRaw = (getRowValue(row, normalizedRow, "ФИО Курьера") ?? "").toString().trim();
     const isCourier = !!courierNameRaw;
 
     const actualCompletionTime = isCourier ? (handedToGuest || totalDeliveryTime) : prepared;
@@ -657,7 +732,7 @@ function preprocessAllRows(){
       totalKitchenTime,
       travelTime
     };
-  }).filter(r => r.accepted && r.actualCompletionTime); // минимально жизнеспособные строки
+  }).filter(r => r.accepted); // минимально жизнеспособные строки
 }
 
 function applyAdvancedFilters(rows){
@@ -978,8 +1053,21 @@ function runAnalysis(){
   rows = applyAdvancedFilters(rows);
 
   // render
-  document.getElementById("output").style.display = "block";
+  const output = document.getElementById("output");
+  const emptyState = document.getElementById("emptyState");
+  const resultsArea = document.getElementById("resultsArea");
+  output.style.display = "block";
   setDrillLabel();
+
+  if (!rows.length){
+    emptyState.style.display = "flex";
+    resultsArea.style.display = "none";
+    toast("Нет данных по выбранным фильтрам", "err");
+    return;
+  }
+
+  emptyState.style.display = "none";
+  resultsArea.style.display = "block";
 
   const stats = getStats(rows);
   buildGeneralStatsUI(stats, start, end);
@@ -994,10 +1082,6 @@ function runAnalysis(){
   const title = document.getElementById("stats-title");
   title.textContent = "📋 Сводная статистика" + (activeDrilldownCourier ? ` — ${activeDrilldownCourier}` : "");
 
-  // If nothing
-  if (!rows.length){
-    toast("Нет данных по выбранным фильтрам", "err");
-  }
 }
 
 /* =======================
