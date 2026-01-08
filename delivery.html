@@ -11,21 +11,23 @@
 
   <style>
     :root{
-      --bg:#f6f7fb;
+      --bg:#eef2f7;
       --card:#ffffff;
-      --text:#1f2937;
-      --muted:#6b7280;
+      --text:#0f172a;
+      --muted:#64748b;
       --brand:#2563eb;
       --brand2:#1d4ed8;
-      --border:#e5e7eb;
+      --border:#e2e8f0;
       --danger:#dc2626;
       --ok:#16a34a;
-      --shadow: 0 10px 25px rgba(0,0,0,.06);
-      --radius:14px;
+      --accent:#0ea5e9;
+      --accent-2:#22c55e;
+      --shadow: 0 16px 30px rgba(15,23,42,.08);
+      --radius:16px;
     }
     *{box-sizing:border-box}
     body{
-      margin:0; padding:20px;
+      margin:0; padding:24px;
       font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Segoe UI Emoji";
       background:var(--bg); color:var(--text);
     }
@@ -37,8 +39,8 @@
       box-shadow:var(--shadow);
       padding:18px;
     }
-    h1{margin:0 0 6px 0; font-size:22px}
-    .sub{color:var(--muted); margin:0 0 14px 0; line-height:1.35}
+    h1{margin:0 0 6px 0; font-size:24px}
+    .sub{color:var(--muted); margin:0 0 14px 0; line-height:1.5}
     h2{
       margin:22px 0 10px 0;
       font-size:18px;
@@ -52,42 +54,45 @@
       border:1px solid var(--border);
       border-radius:var(--radius);
       padding:12px;
-      box-shadow: 0 6px 18px rgba(0,0,0,.04);
+      box-shadow: 0 10px 22px rgba(15,23,42,.06);
     }
     .grow{flex:1}
     .stack{display:flex; flex-direction:column; gap:8px}
 
     label{font-size:12px; color:var(--muted)}
     input[type="file"], input[type="date"], input[type="text"], select{
-      padding:10px 10px;
+      padding:10px 12px;
       border:1px solid var(--border);
-      border-radius:10px;
+      border-radius:12px;
       font-size:14px;
       outline:none;
       background:#fff;
       min-height:40px;
+      box-shadow: 0 2px 6px rgba(15,23,42,.04);
     }
     input:focus, select:focus{border-color: #93c5fd; box-shadow: 0 0 0 3px rgba(37,99,235,.12);}
     button{
       border:none;
-      border-radius:10px;
-      padding:10px 12px;
+      border-radius:12px;
+      padding:10px 14px;
       background:var(--brand);
       color:#fff;
       cursor:pointer;
       font-size:14px;
       min-height:40px;
-      transition: transform .04s ease, background .15s ease, opacity .15s ease;
+      box-shadow: 0 8px 18px rgba(37,99,235,.2);
+      transition: transform .04s ease, background .15s ease, opacity .15s ease, box-shadow .15s ease;
     }
     button:hover{background:var(--brand2)}
     button:active{transform: translateY(1px)}
     button.secondary{
-      background:#111827;
+      background:#0f172a;
     }
     button.ghost{
       background:#fff;
       border:1px solid var(--border);
       color:var(--text);
+      box-shadow:none;
     }
     button.danger{background:var(--danger)}
     button:disabled{
@@ -100,7 +105,7 @@
       display:inline-flex; align-items:center; gap:8px;
       padding:6px 10px; border-radius:999px;
       border:1px solid var(--border);
-      background:#fff;
+      background:#f8fafc;
       font-size:12px;
       color:var(--muted);
     }
@@ -135,8 +140,9 @@
     .stat{
       border:1px solid var(--border);
       border-radius:var(--radius);
-      padding:12px;
-      background:#fff;
+      padding:14px;
+      background:linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+      box-shadow: 0 6px 14px rgba(15,23,42,.05);
     }
     .stat .k{color:var(--muted); font-size:12px}
     .stat .v{font-size:22px; margin-top:6px; font-weight:700}
@@ -156,7 +162,7 @@
       border:1px solid var(--border);
       border-radius:var(--radius);
       padding:10px;
-      background:#fff;
+      background:linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
       min-height:320px;
     }
     .empty-state{
@@ -186,8 +192,9 @@
       text-align:left;
       vertical-align:top;
     }
-    th{background:#f9fafb; color:#374151; font-size:12px; text-transform:uppercase; letter-spacing:.02em}
-    tr:hover td{background:#fafafa}
+    th{background:#f1f5f9; color:#0f172a; font-size:12px; text-transform:uppercase; letter-spacing:.02em}
+    tbody tr:nth-child(even) td{background:#f8fafc}
+    tr:hover td{background:#eef2ff}
     .table-container{overflow:auto; border-radius:var(--radius)}
 
     /* Toasts */
@@ -381,6 +388,7 @@ let hourlyChart = null;
 let latenessChart = null;
 let courierData = [];
 let activeDrilldownCourier = null;
+let chartsConfigured = false;
 
 /* =======================
    UX helpers
@@ -412,6 +420,16 @@ function setEnabled(enabled){
   document.getElementById("btnExportDailyTxt").disabled = !enabled;
   document.getElementById("btnExportCouriers").disabled = !enabled;
   document.getElementById("btnClear").disabled = !enabled && allData.length === 0;
+}
+
+function configureCharts(){
+  if (chartsConfigured || typeof Chart === "undefined") return;
+  Chart.defaults.color = "#0f172a";
+  Chart.defaults.font.family = "ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial";
+  Chart.defaults.plugins.legend.labels.usePointStyle = true;
+  Chart.defaults.plugins.tooltip.backgroundColor = "rgba(15,23,42,0.9)";
+  Chart.defaults.plugins.tooltip.padding = 12;
+  chartsConfigured = true;
 }
 
 /* =======================
@@ -954,6 +972,7 @@ function buildCourierRating(rows){
    Charts
 ======================= */
 function buildHourlyChart(rows){
+  configureCharts();
   // group by hour from accepted
   const hours = Array.from({length:24}, (_,i)=>i);
   const counts = new Array(24).fill(0);
@@ -975,22 +994,50 @@ function buildHourlyChart(rows){
     data: {
       labels: hours.map(h=>String(h).padStart(2,"0")+":00"),
       datasets: [
-        { label:"Заказы", data: counts },
-        { label:"Опоздали (%)", data: latePct, type:"line", yAxisID:"y2" }
+        {
+          label:"Заказы",
+          data: counts,
+          backgroundColor:"rgba(14,165,233,0.6)",
+          borderColor:"rgba(14,165,233,1)",
+          borderWidth:1
+        },
+        {
+          label:"Опоздали (%)",
+          data: latePct,
+          type:"line",
+          yAxisID:"y2",
+          borderColor:"rgba(239,68,68,1)",
+          backgroundColor:"rgba(239,68,68,0.15)",
+          borderWidth:2,
+          tension:0.35,
+          pointRadius:2
+        }
       ]
     },
     options: {
       responsive:true,
       maintainAspectRatio:false,
       scales: {
-        y: { beginAtZero:true, title:{display:true, text:"Кол-во"} },
-        y2: { beginAtZero:true, position:"right", min:0, max:100, grid:{drawOnChartArea:false}, title:{display:true, text:"%"} }
+        y: {
+          beginAtZero:true,
+          title:{display:true, text:"Кол-во"},
+          grid:{color:"rgba(148,163,184,0.2)"}
+        },
+        y2: {
+          beginAtZero:true,
+          position:"right",
+          min:0,
+          max:100,
+          grid:{drawOnChartArea:false},
+          title:{display:true, text:"%"}
+        }
       }
     }
   });
 }
 
 function buildLatenessChart(rows){
+  configureCharts();
   // distribution of onTimeDiff (minutes) for late only
   const bins = [
     { name:"0–5", min:0, max:5 },
@@ -1018,13 +1065,24 @@ function buildLatenessChart(rows){
     data:{
       labels: bins.map(b=>b.name),
       datasets:[
-        { label:"Количество опозданий", data: counts }
+        {
+          label:"Количество опозданий",
+          data: counts,
+          backgroundColor:"rgba(37,99,235,0.65)",
+          borderColor:"rgba(37,99,235,1)",
+          borderWidth:1
+        }
       ]
     },
     options:{
       responsive:true,
       maintainAspectRatio:false,
-      scales:{ y:{ beginAtZero:true } }
+      scales:{
+        y:{
+          beginAtZero:true,
+          grid:{color:"rgba(148,163,184,0.2)"}
+        }
+      }
     }
   });
 }
