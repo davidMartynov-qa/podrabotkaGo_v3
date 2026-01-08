@@ -1,0 +1,1227 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Аналитика Доставки Заказов</title>
+
+  <!-- Libs -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@3.7.1/dist/chart.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#f6f7fb;
+      --card:#ffffff;
+      --text:#1f2937;
+      --muted:#6b7280;
+      --brand:#2563eb;
+      --brand2:#1d4ed8;
+      --border:#e5e7eb;
+      --danger:#dc2626;
+      --ok:#16a34a;
+      --shadow: 0 10px 25px rgba(0,0,0,.06);
+      --radius:14px;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0; padding:20px;
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Segoe UI Emoji";
+      background:var(--bg); color:var(--text);
+    }
+    .container{
+      max-width:1400px; margin:0 auto;
+      background:var(--card);
+      border:1px solid var(--border);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      padding:18px;
+    }
+    h1{margin:0 0 6px 0; font-size:22px}
+    .sub{color:var(--muted); margin:0 0 14px 0; line-height:1.35}
+    h2{
+      margin:22px 0 10px 0;
+      font-size:18px;
+      padding-bottom:6px;
+      border-bottom:1px solid var(--border);
+    }
+
+    .row{display:flex; gap:12px; flex-wrap:wrap; align-items:center}
+    .card{
+      background:var(--card);
+      border:1px solid var(--border);
+      border-radius:var(--radius);
+      padding:12px;
+      box-shadow: 0 6px 18px rgba(0,0,0,.04);
+    }
+    .grow{flex:1}
+    .stack{display:flex; flex-direction:column; gap:8px}
+
+    label{font-size:12px; color:var(--muted)}
+    input[type="file"], input[type="date"], input[type="text"], select{
+      padding:10px 10px;
+      border:1px solid var(--border);
+      border-radius:10px;
+      font-size:14px;
+      outline:none;
+      background:#fff;
+      min-height:40px;
+    }
+    input:focus, select:focus{border-color: #93c5fd; box-shadow: 0 0 0 3px rgba(37,99,235,.12);}
+    button{
+      border:none;
+      border-radius:10px;
+      padding:10px 12px;
+      background:var(--brand);
+      color:#fff;
+      cursor:pointer;
+      font-size:14px;
+      min-height:40px;
+      transition: transform .04s ease, background .15s ease, opacity .15s ease;
+    }
+    button:hover{background:var(--brand2)}
+    button:active{transform: translateY(1px)}
+    button.secondary{
+      background:#111827;
+    }
+    button.ghost{
+      background:#fff;
+      border:1px solid var(--border);
+      color:var(--text);
+    }
+    button.danger{background:var(--danger)}
+    button:disabled{
+      opacity:.5; cursor:not-allowed;
+      transform:none;
+    }
+
+    .hint{color:var(--muted); font-size:12px}
+    .pill{
+      display:inline-flex; align-items:center; gap:8px;
+      padding:6px 10px; border-radius:999px;
+      border:1px solid var(--border);
+      background:#fff;
+      font-size:12px;
+      color:var(--muted);
+    }
+    .pill strong{color:var(--text); font-weight:600}
+
+    .grid4{
+      display:grid;
+      grid-template-columns: repeat(4, minmax(220px, 1fr));
+      gap:12px;
+    }
+    @media (max-width:1100px){
+      .grid4{grid-template-columns: repeat(2, minmax(220px, 1fr));}
+    }
+    @media (max-width:680px){
+      .grid4{grid-template-columns: 1fr;}
+      body{padding:12px}
+    }
+    .stat{
+      border:1px solid var(--border);
+      border-radius:var(--radius);
+      padding:12px;
+      background:#fff;
+    }
+    .stat .k{color:var(--muted); font-size:12px}
+    .stat .v{font-size:22px; margin-top:6px; font-weight:700}
+    .stat .s{color:var(--muted); font-size:12px; margin-top:6px}
+
+    .two{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:12px;
+    }
+    @media (max-width:1100px){
+      .two{grid-template-columns:1fr;}
+    }
+
+    .chart-container{
+      position:relative;
+      border:1px solid var(--border);
+      border-radius:var(--radius);
+      padding:10px;
+      background:#fff;
+      min-height:320px;
+    }
+
+    table{
+      width:100%;
+      border-collapse: collapse;
+      font-size:13px;
+      background:#fff;
+      border:1px solid var(--border);
+      border-radius:var(--radius);
+      overflow:hidden;
+    }
+    th, td{
+      padding:10px;
+      border-bottom:1px solid var(--border);
+      text-align:left;
+      vertical-align:top;
+    }
+    th{background:#f9fafb; color:#374151; font-size:12px; text-transform:uppercase; letter-spacing:.02em}
+    tr:hover td{background:#fafafa}
+    .table-container{overflow:auto; border-radius:var(--radius)}
+
+    /* Toasts */
+    #toasts{
+      position:fixed;
+      right:14px;
+      bottom:14px;
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+      z-index:9999;
+    }
+    .toast{
+      max-width: 360px;
+      background:#111827;
+      color:#fff;
+      padding:10px 12px;
+      border-radius:12px;
+      box-shadow: 0 12px 30px rgba(0,0,0,.18);
+      font-size:13px;
+      line-height:1.35;
+      display:flex;
+      gap:10px;
+      align-items:flex-start;
+    }
+    .toast .dot{
+      margin-top:6px;
+      width:8px; height:8px; border-radius:999px;
+      background:#93c5fd;
+      flex:0 0 auto;
+    }
+    .toast.ok .dot{background:#86efac}
+    .toast.err .dot{background:#fca5a5}
+
+    /* Drop zone */
+    .drop{
+      border:1px dashed #cbd5e1;
+      background:#f8fafc;
+      border-radius:var(--radius);
+      padding:12px;
+      display:flex; gap:10px; align-items:center; justify-content:space-between;
+    }
+    .drop strong{font-size:14px}
+    .drop small{color:var(--muted)}
+    .drop.dragover{border-color:#60a5fa; background:#eff6ff;}
+    .mono{font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;}
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <h1>Аналитика доставки заказов</h1>
+    <p class="sub">
+      Загрузите CSV или XLSX. Фильтры применяются к сводной статистике, графикам, рейтингу курьеров и экспортам.
+      <br>
+      <span class="hint">
+        Опоздание считаем так: <b>🚚 доставка</b> — сравниваем доставку (передан гостю / общее время доставки) с обещанным временем; <b>🏪 самовывоз</b> — готовность с обещанным временем.
+      </span>
+    </p>
+
+    <!-- Upload -->
+    <div class="card stack">
+      <div class="row">
+        <div class="drop grow" id="dropZone">
+          <div class="stack" style="gap:2px">
+            <strong>Файл данных</strong>
+            <small>Перетащите CSV/XLSX сюда или выберите через кнопку</small>
+          </div>
+          <div class="row" style="gap:8px">
+            <input id="file-input" type="file" accept=".csv,.xlsx" />
+            <button class="ghost" id="btnClear" disabled>Очистить</button>
+          </div>
+        </div>
+
+        <span class="pill"><span class="mono" id="statusText">Нет данных</span></span>
+      </div>
+
+      <div class="row">
+        <div class="stack">
+          <label>Режим фильтра по дате</label>
+          <select id="mode-selector" onchange="toggleMode()">
+            <option value="day">Один день</option>
+            <option value="period">Период</option>
+          </select>
+        </div>
+
+        <div class="row" id="date-inputs-day">
+          <div class="stack">
+            <label>Дата</label>
+            <input id="date-start" type="date"/>
+          </div>
+        </div>
+
+        <div class="row" id="date-inputs-period" style="display:none;">
+          <div class="stack">
+            <label>Дата начала</label>
+            <input id="date-start-period" type="date"/>
+          </div>
+          <div class="stack">
+            <label>Дата конца</label>
+            <input id="date-end-period" type="date"/>
+          </div>
+        </div>
+
+        <div class="stack">
+          <label>Тип заказа</label>
+          <select id="type-filter">
+            <option value="all">Все</option>
+            <option value="delivery">Только доставка</option>
+            <option value="pickup">Только самовывоз</option>
+          </select>
+        </div>
+
+        <div class="stack">
+          <label>Опоздание</label>
+          <select id="lateness-filter">
+            <option value="all">Все</option>
+            <option value="late">Только опоздавшие</option>
+            <option value="ontime">Только вовремя</option>
+          </select>
+        </div>
+
+        <div class="row" style="gap:8px">
+          <button id="btnApply" onclick="runAnalysis()" disabled>Показать</button>
+          <button id="btnResetFilters" class="ghost" onclick="resetFilters()" disabled>Сбросить фильтры</button>
+        </div>
+      </div>
+
+      <div class="row">
+        <button id="btnExportDailyTxt" onclick="exportDailySummaryTxt()" disabled>Выгрузить сводную статистику (TXT по дням)</button>
+        <button id="btnExportCouriers" class="secondary" onclick="exportCouriers()" disabled>Экспорт рейтинга курьеров (CSV)</button>
+
+        <span class="pill">Drilldown курьер: <strong id="drillLabel">нет</strong></span>
+        <span class="pill">Курьеров в рейтинге: <strong id="courier-count">0</strong></span>
+      </div>
+    </div>
+
+    <!-- Output -->
+    <div id="output" style="display:none;">
+      <h2 id="stats-title">📋 Сводная статистика</h2>
+      <div class="grid4" id="general-stats"></div>
+
+      <h2>📈 Анализ заказов по часам</h2>
+      <div class="two">
+        <div class="chart-container">
+          <canvas id="hourlyPeaksChart"></canvas>
+        </div>
+        <div class="chart-container">
+          <canvas id="latenessChart"></canvas>
+        </div>
+      </div>
+
+      <h2>📅 Анализ по дням недели</h2>
+      <div class="table-container">
+        <table id="day-of-week-table"></table>
+      </div>
+
+      <h2>🧑‍🚚 Рейтинг курьеров</h2>
+      <div class="hint" style="margin-bottom:8px">
+        Нажмите на строку курьера — включится drilldown (все показатели/графики перестроятся только по этому курьеру). Повторный клик — отключит.
+      </div>
+      <div class="table-container">
+        <table id="courier-rating-table"></table>
+      </div>
+
+      <h2>⏱ Фазы (средние значения)</h2>
+      <div class="table-container">
+        <table id="phases-table"></table>
+      </div>
+    </div>
+  </div>
+
+  <div id="toasts"></div>
+
+<script>
+/* =======================
+   STATE
+======================= */
+let allData = [];
+let hourlyChart = null;
+let latenessChart = null;
+let courierData = [];
+let activeDrilldownCourier = null;
+
+/* =======================
+   UX helpers
+======================= */
+function toast(message, type = "info", ms = 3800){
+  const wrap = document.getElementById("toasts");
+  const el = document.createElement("div");
+  el.className = "toast" + (type === "ok" ? " ok" : type === "err" ? " err" : "");
+  el.innerHTML = `<div class="dot"></div><div>${message}</div>`;
+  wrap.appendChild(el);
+  setTimeout(()=>{ el.style.opacity="0"; el.style.transform="translateY(6px)"; }, ms - 350);
+  setTimeout(()=>{ el.remove(); }, ms);
+}
+function setStatus(text){
+  document.getElementById("statusText").textContent = text;
+}
+function setDrillLabel(){
+  document.getElementById("drillLabel").textContent = activeDrilldownCourier ? activeDrilldownCourier : "нет";
+}
+function setEnabled(enabled){
+  document.getElementById("btnApply").disabled = !enabled;
+  document.getElementById("btnResetFilters").disabled = !enabled;
+  document.getElementById("btnExportDailyTxt").disabled = !enabled;
+  document.getElementById("btnExportCouriers").disabled = !enabled;
+  document.getElementById("btnClear").disabled = !enabled && allData.length === 0;
+}
+
+/* =======================
+   Parsing helpers
+======================= */
+function parseDateTime(d){
+  if (!d) return null;
+  const s = String(d).trim();
+  if (!s) return null;
+
+  // If Excel gave us a Date object:
+  if (d instanceof Date && !isNaN(d.getTime())) return d;
+
+  // normalize common formats: "DD.MM.YYYY HH:MM:SS" or "DD.MM.YYYY HH:MM"
+  // also accept "YYYY-MM-DD HH:MM:SS"
+  const cleaned = s.replace(/\u00A0/g, " ").trim();
+
+  // Try Date parsing directly (works for ISO mostly)
+  const direct = new Date(cleaned);
+  if (!isNaN(direct.getTime())) return direct;
+
+  // Try RU format
+  // Split date and time
+  const parts = cleaned.split(" ");
+  const datePart = parts[0];
+  const timePart = parts[1] || "00:00:00";
+
+  const dmy = datePart.split(/[.\-\/]/).map(x=>x.trim());
+  if (dmy.length === 3){
+    let day = Number(dmy[0]);
+    let month = Number(dmy[1]);
+    let year = Number(dmy[2]);
+
+    // If first token looks like year (YYYY-MM-DD)
+    if (year < 100 && dmy[0].length === 4){
+      year = Number(dmy[0]);
+      month = Number(dmy[1]);
+      day = Number(dmy[2]);
+    }
+
+    const t = timePart.split(":").map(n=>Number(n));
+    const hh = t[0] || 0, mm = t[1] || 0, ss = t[2] || 0;
+
+    const dt = new Date(year, (month-1), day, hh, mm, ss);
+    return isNaN(dt.getTime()) ? null : dt;
+  }
+
+  return null;
+}
+
+function timeDiffInMinutes(start, end){
+  if (!start || !end) return null;
+  return (end - start) / 60000;
+}
+
+function getAverage(arr){
+  const n = arr.filter(v => v != null && isFinite(v));
+  if (!n.length) return "Нет данных";
+  const avg = n.reduce((a,b)=>a+b,0) / n.length;
+  return String(Math.round(avg));
+}
+
+function formatYMD(dateObj){
+  const y = dateObj.getFullYear();
+  const m = String(dateObj.getMonth()+1).padStart(2,"0");
+  const d = String(dateObj.getDate()).padStart(2,"0");
+  return `${y}-${m}-${d}`;
+}
+
+/* =======================
+   Upload + parse CSV/XLSX
+======================= */
+const fileInput = document.getElementById("file-input");
+fileInput.addEventListener("change", (e)=>{
+  const f = e.target.files?.[0];
+  if (f) handleFileUpload(f);
+});
+
+const dropZone = document.getElementById("dropZone");
+dropZone.addEventListener("dragover", (e)=>{
+  e.preventDefault();
+  dropZone.classList.add("dragover");
+});
+dropZone.addEventListener("dragleave", ()=>{
+  dropZone.classList.remove("dragover");
+});
+dropZone.addEventListener("drop", (e)=>{
+  e.preventDefault();
+  dropZone.classList.remove("dragover");
+  const f = e.dataTransfer.files?.[0];
+  if (f) handleFileUpload(f);
+});
+
+document.getElementById("btnClear").addEventListener("click", ()=>{
+  allData = [];
+  courierData = [];
+  activeDrilldownCourier = null;
+  setDrillLabel();
+  setStatus("Нет данных");
+  document.getElementById("output").style.display = "none";
+  fileInput.value = "";
+  setEnabled(false);
+  document.getElementById("courier-count").textContent = "0";
+  toast("Данные очищены", "ok");
+});
+
+function handleFileUpload(file){
+  const name = file.name.toLowerCase();
+  setStatus("Загрузка…");
+  setEnabled(false);
+
+  const reader = new FileReader();
+  reader.onerror = () => {
+    setStatus("Ошибка чтения файла");
+    toast("Не удалось прочитать файл", "err");
+    setEnabled(false);
+  };
+
+  reader.onload = (evt)=>{
+    try{
+      if (name.endsWith(".xlsx")){
+        const data = new Uint8Array(evt.target.result);
+        const wb = XLSX.read(data, { type:"array" });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const json = XLSX.utils.sheet_to_json(ws, { defval:"" });
+        allData = json;
+      } else {
+        const text = String(evt.target.result || "");
+        allData = parseCSV(text);
+      }
+
+      if (!allData.length){
+        setStatus("Файл пустой / не распознан");
+        toast("Не нашёл строк данных в файле", "err");
+        setEnabled(false);
+        return;
+      }
+
+      setStatus(`Загружено строк: ${allData.length}`);
+      toast(`Файл загружен: ${file.name} (строк: ${allData.length})`, "ok");
+      setEnabled(true);
+      document.getElementById("btnClear").disabled = false;
+
+      // Auto-run once
+      runAnalysis();
+
+    } catch (err){
+      console.error(err);
+      setStatus("Ошибка обработки файла");
+      toast("Ошибка обработки файла. Проверь структуру колонок.", "err");
+      setEnabled(false);
+    }
+  };
+
+  if (name.endsWith(".xlsx")){
+    reader.readAsArrayBuffer(file);
+  } else {
+    reader.readAsText(file, "UTF-8");
+  }
+}
+
+function parseCSV(text){
+  // Simple CSV parser with ; or , separator
+  const lines = text.split(/\r?\n/).filter(l => l.trim().length);
+  if (!lines.length) return [];
+
+  // detect delimiter
+  const headerLine = lines[0];
+  const semi = (headerLine.match(/;/g)||[]).length;
+  const comma = (headerLine.match(/,/g)||[]).length;
+  const delim = semi >= comma ? ";" : ",";
+
+  const headers = headerLine.split(delim).map(h=>h.trim().replace(/^"|"$/g,""));
+  const out = [];
+
+  for (let i=1;i<lines.length;i++){
+    const rowLine = lines[i];
+    // naive split respecting quotes
+    const cells = [];
+    let cur = "";
+    let inQ = false;
+    for (let j=0;j<rowLine.length;j++){
+      const ch = rowLine[j];
+      if (ch === '"'){
+        inQ = !inQ;
+        continue;
+      }
+      if (ch === delim && !inQ){
+        cells.push(cur);
+        cur = "";
+      } else {
+        cur += ch;
+      }
+    }
+    cells.push(cur);
+
+    const obj = {};
+    headers.forEach((h, idx)=>{
+      obj[h] = (cells[idx] ?? "").trim();
+    });
+    out.push(obj);
+  }
+  return out;
+}
+
+/* =======================
+   Filters UI
+======================= */
+function toggleMode(){
+  const mode = document.getElementById("mode-selector").value;
+  document.getElementById("date-inputs-day").style.display = (mode === "day") ? "flex" : "none";
+  document.getElementById("date-inputs-period").style.display = (mode === "period") ? "flex" : "none";
+}
+
+function resetFilters(){
+  document.getElementById("mode-selector").value = "day";
+  toggleMode();
+  document.getElementById("date-start").value = "";
+  document.getElementById("date-start-period").value = "";
+  document.getElementById("date-end-period").value = "";
+  document.getElementById("type-filter").value = "all";
+  document.getElementById("lateness-filter").value = "all";
+  activeDrilldownCourier = null;
+  setDrillLabel();
+  toast("Фильтры сброшены", "ok");
+  runAnalysis();
+}
+
+/* =======================
+   Core processing
+======================= */
+function getDateRange(){
+  const mode = document.getElementById("mode-selector").value;
+  if (mode === "day"){
+    const v = document.getElementById("date-start").value;
+    if (!v) return { start:null, end:null };
+    const start = new Date(v + "T00:00:00");
+    const end = new Date(v + "T23:59:59");
+    return { start, end };
+  } else {
+    const a = document.getElementById("date-start-period").value;
+    const b = document.getElementById("date-end-period").value;
+    if (!a || !b) return { start:null, end:null };
+    const start = new Date(a + "T00:00:00");
+    const end = new Date(b + "T23:59:59");
+    return { start, end };
+  }
+}
+
+function preprocessAllRows(){
+  // Map raw rows -> computed fields
+  // Required columns (by name as in your original):
+  // 'Обещанное время', 'Принятие заказа в ресторане', 'Приготовление', 'Передача курьеру', 'Передан гостю', 'Общее время доставки заказа', 'ФИО Курьера'
+  return allData.map(row=>{
+    const promised = parseDateTime(row["Обещанное время"]);
+    const accepted = parseDateTime(row["Принятие заказа в ресторане"]);
+    const prepared = parseDateTime(row["Приготовление"]);
+    const handedOver = parseDateTime(row["Передача курьеру"]);
+    const handedToGuest = parseDateTime(row["Передан гостю"]);
+    const totalDeliveryTime = parseDateTime(row["Общее время доставки заказа"]);
+
+    const courierNameRaw = (row["ФИО Курьера"] ?? "").toString().trim();
+    const isCourier = !!courierNameRaw;
+
+    const actualCompletionTime = isCourier ? (handedToGuest || totalDeliveryTime) : prepared;
+    const onTimeDiff = (promised && actualCompletionTime) ? timeDiffInMinutes(promised, actualCompletionTime) : null;
+    const isLate = (onTimeDiff != null) ? (onTimeDiff > 0) : false;
+
+    const prepTime = timeDiffInMinutes(accepted, prepared);
+    const courierWaitingTime = timeDiffInMinutes(prepared, handedOver);
+    const totalKitchenTime = timeDiffInMinutes(accepted, handedOver);
+    const travelTime = isCourier ? timeDiffInMinutes(handedOver, actualCompletionTime) : null;
+
+    return {
+      ...row,
+      promised, accepted, prepared, handedOver, handedToGuest, totalDeliveryTime,
+      courierName: courierNameRaw || "Самовывоз",
+      isCourier,
+      actualCompletionTime,
+      onTimeDiff,
+      isLate,
+      prepTime,
+      courierWaitingTime,
+      totalKitchenTime,
+      travelTime
+    };
+  }).filter(r => r.accepted && r.actualCompletionTime); // минимально жизнеспособные строки
+}
+
+function applyAdvancedFilters(rows){
+  let out = rows.slice();
+
+  // type filter
+  const typeFilter = document.getElementById("type-filter").value;
+  if (typeFilter === "delivery") out = out.filter(r => r.isCourier);
+  if (typeFilter === "pickup") out = out.filter(r => !r.isCourier);
+
+  // lateness filter
+  const latenessFilter = document.getElementById("lateness-filter").value;
+  if (latenessFilter === "late") out = out.filter(r => r.isLate);
+  if (latenessFilter === "ontime") out = out.filter(r => !r.isLate);
+
+  // drilldown courier
+  if (activeDrilldownCourier){
+    out = out.filter(r => r.courierName === activeDrilldownCourier);
+  }
+
+  return out;
+}
+
+function applyDateFilter(rows, start, end){
+  if (!start || !end) return rows;
+  return rows.filter(r => r.accepted >= start && r.accepted <= end);
+}
+
+/* =======================
+   Stats builders
+======================= */
+function getStats(rows){
+  const total = rows.length;
+  const delivery = rows.filter(r => r.isCourier).length;
+  const pickup = total - delivery;
+  const lateCount = rows.filter(r => r.isLate).length;
+  const latePct = total ? Math.round((lateCount / total) * 100) : 0;
+
+  const kitchen = getAverage(rows.map(r => r.totalKitchenTime));
+  const travel = getAverage(rows.filter(r => r.isCourier).map(r => r.travelTime));
+
+  return { total, delivery, pickup, latePct, kitchen, travel };
+}
+
+function getPhaseStats(rows){
+  const deliveryRows = rows.filter(r => r.isCourier);
+  const onTimeDeliveryPct = deliveryRows.length
+    ? String(Math.round(100 - (deliveryRows.filter(r => r.isLate).length / deliveryRows.length) * 100))
+    : "Нет данных";
+
+  return {
+    prepTime: getAverage(rows.map(r => r.prepTime)),
+    courierWait: getAverage(rows.map(r => r.courierWaitingTime)),
+    totalKitchen: getAverage(rows.map(r => r.totalKitchenTime)),
+    travelTime: getAverage(deliveryRows.map(r => r.travelTime)),
+    onTimeDeliveryPct
+  };
+}
+
+function buildGeneralStatsUI(stats, start, end){
+  const box = document.getElementById("general-stats");
+  box.innerHTML = "";
+
+  const dateLabel = (start && end)
+    ? (formatYMD(start) === formatYMD(end) ? formatYMD(start) : `${formatYMD(start)} → ${formatYMD(end)}`)
+    : "без фильтра даты";
+
+  const items = [
+    { k:"Период", v: dateLabel, s:"по 'Принятие заказа в ресторане'" },
+    { k:"Всего заказов", v: stats.total, s:"количество строк после фильтров" },
+    { k:"Опоздали", v: stats.latePct + "%", s:"по логике доставка/самовывоз" },
+    { k:"Сборка заказа (среднее)", v: stats.kitchen === "Нет данных" ? "—" : stats.kitchen + " мин", s:"accepted → handedOver" },
+    { k:"Путь курьера (среднее)", v: stats.travel === "Нет данных" ? "—" : stats.travel + " мин", s:"handedOver → delivered" },
+    { k:"Доставка / Самовывоз", v: `${stats.delivery} / ${stats.pickup}`, s:"по наличию ФИО Курьера" },
+    { k:"Drilldown курьер", v: activeDrilldownCourier ? activeDrilldownCourier : "нет", s:"влияет на все расчёты" },
+    { k:"Экспорт TXT", v: "по дням", s:"дата = accepted" }
+  ];
+
+  items.forEach(it=>{
+    const el = document.createElement("div");
+    el.className = "stat";
+    el.innerHTML = `<div class="k">${it.k}</div><div class="v">${it.v}</div><div class="s">${it.s}</div>`;
+    box.appendChild(el);
+  });
+}
+
+function buildPhasesTable(phase){
+  const t = document.getElementById("phases-table");
+  t.innerHTML = `
+    <thead>
+      <tr>
+        <th>Фаза</th>
+        <th>Значение</th>
+        <th>Как считаем</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td>Готовка блюд</td><td>${phase.prepTime} мин</td><td>accepted → prepared</td></tr>
+      <tr><td>Ожидание курьера</td><td>${phase.courierWait} мин</td><td>prepared → handedOver</td></tr>
+      <tr><td>Вся сборка заказа</td><td>${phase.totalKitchen} мин</td><td>accepted → handedOver</td></tr>
+      <tr><td>Путь курьера</td><td>${phase.travelTime} мин</td><td>handedOver → delivered (только доставка)</td></tr>
+      <tr><td>Своевременность доставки</td><td>${phase.onTimeDeliveryPct}%</td><td>только доставка (late=false)</td></tr>
+    </tbody>
+  `;
+}
+
+function buildDayOfWeekTable(rows){
+  // group by day name
+  const map = new Map();
+  rows.forEach(r=>{
+    const d = r.accepted;
+    const day = d.toLocaleDateString("ru-RU", { weekday:"long" });
+    if (!map.has(day)) map.set(day, []);
+    map.get(day).push(r);
+  });
+
+  const order = ["понедельник","вторник","среда","четверг","пятница","суббота","воскресенье"];
+  const days = Array.from(map.keys()).sort((a,b)=>order.indexOf(a)-order.indexOf(b));
+
+  const t = document.getElementById("day-of-week-table");
+  let body = "";
+  days.forEach(day=>{
+    const arr = map.get(day);
+    const stats = getStats(arr);
+    body += `
+      <tr>
+        <td>${day}</td>
+        <td>${stats.total}</td>
+        <td>${stats.latePct}%</td>
+        <td>${stats.kitchen === "Нет данных" ? "—" : stats.kitchen + " мин"}</td>
+        <td>${stats.travel === "Нет данных" ? "—" : stats.travel + " мин"}</td>
+      </tr>
+    `;
+  });
+
+  t.innerHTML = `
+    <thead>
+      <tr>
+        <th>День недели</th>
+        <th>Заказов</th>
+        <th>Опоздали</th>
+        <th>Сборка (среднее)</th>
+        <th>Путь курьера (среднее)</th>
+      </tr>
+    </thead>
+    <tbody>${body || `<tr><td colspan="5">Нет данных</td></tr>`}</tbody>
+  `;
+}
+
+function buildCourierRating(rows){
+  // build rating only for deliveries with courier name
+  const deliveries = rows.filter(r => r.isCourier && r.courierName && r.courierName !== "Самовывоз");
+  const map = new Map();
+  deliveries.forEach(r=>{
+    if (!map.has(r.courierName)) map.set(r.courierName, []);
+    map.get(r.courierName).push(r);
+  });
+
+  courierData = Array.from(map.entries()).map(([name, arr])=>{
+    const total = arr.length;
+    const latePct = total ? Math.round((arr.filter(x=>x.isLate).length/total)*100) : 0;
+    const travel = getAverage(arr.map(x=>x.travelTime));
+    const kitchen = getAverage(arr.map(x=>x.totalKitchenTime));
+    return { name, total, latePct, travel, kitchen };
+  }).sort((a,b)=> (a.latePct - b.latePct) || (b.total - a.total));
+
+  document.getElementById("courier-count").textContent = String(courierData.length);
+
+  const t = document.getElementById("courier-rating-table");
+  let body = "";
+  courierData.forEach((c, idx)=>{
+    const isActive = activeDrilldownCourier === c.name;
+    body += `
+      <tr data-courier="${encodeURIComponent(c.name)}" style="cursor:pointer; ${isActive ? "background:#eff6ff" : ""}">
+        <td>${idx+1}</td>
+        <td><b>${c.name}</b>${isActive ? ` <span class="pill" style="margin-left:8px">drilldown</span>` : ""}</td>
+        <td>${c.total}</td>
+        <td>${c.latePct}%</td>
+        <td>${c.kitchen === "Нет данных" ? "—" : c.kitchen + " мин"}</td>
+        <td>${c.travel === "Нет данных" ? "—" : c.travel + " мин"}</td>
+      </tr>
+    `;
+  });
+
+  t.innerHTML = `
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Курьер</th>
+        <th>Доставок</th>
+        <th>Опоздали</th>
+        <th>Сборка (ср.)</th>
+        <th>Путь (ср.)</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${body || `<tr><td colspan="6">Нет данных</td></tr>`}
+    </tbody>
+  `;
+
+  // Row click drilldown
+  t.querySelectorAll("tbody tr[data-courier]").forEach(tr=>{
+    tr.addEventListener("click", ()=>{
+      const name = decodeURIComponent(tr.getAttribute("data-courier"));
+      if (activeDrilldownCourier === name){
+        activeDrilldownCourier = null;
+        toast("Drilldown отключён", "ok");
+      } else {
+        activeDrilldownCourier = name;
+        toast(`Drilldown: ${name}`, "ok");
+      }
+      setDrillLabel();
+      runAnalysis();
+    });
+  });
+}
+
+/* =======================
+   Charts
+======================= */
+function buildHourlyChart(rows){
+  // group by hour from accepted
+  const hours = Array.from({length:24}, (_,i)=>i);
+  const counts = new Array(24).fill(0);
+  const lateCounts = new Array(24).fill(0);
+
+  rows.forEach(r=>{
+    const h = r.accepted.getHours();
+    counts[h] += 1;
+    if (r.isLate) lateCounts[h] += 1;
+  });
+
+  const latePct = counts.map((c,i)=> c ? Math.round((lateCounts[i]/c)*100) : 0);
+
+  const ctx = document.getElementById("hourlyPeaksChart").getContext("2d");
+  if (hourlyChart) hourlyChart.destroy();
+
+  hourlyChart = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: hours.map(h=>String(h).padStart(2,"0")+":00"),
+      datasets: [
+        { label:"Заказы", data: counts },
+        { label:"Опоздали (%)", data: latePct, type:"line", yAxisID:"y2" }
+      ]
+    },
+    options: {
+      responsive:true,
+      maintainAspectRatio:false,
+      scales: {
+        y: { beginAtZero:true, title:{display:true, text:"Кол-во"} },
+        y2: { beginAtZero:true, position:"right", min:0, max:100, grid:{drawOnChartArea:false}, title:{display:true, text:"%"} }
+      }
+    }
+  });
+}
+
+function buildLatenessChart(rows){
+  // distribution of onTimeDiff (minutes) for late only
+  const bins = [
+    { name:"0–5", min:0, max:5 },
+    { name:"6–10", min:6, max:10 },
+    { name:"11–15", min:11, max:15 },
+    { name:"16–30", min:16, max:30 },
+    { name:"31–60", min:31, max:60 },
+    { name:"60+", min:61, max:1e9 }
+  ];
+  const counts = bins.map(()=>0);
+
+  rows.forEach(r=>{
+    if (r.onTimeDiff == null) return;
+    if (r.onTimeDiff <= 0) return;
+    const m = Math.round(r.onTimeDiff);
+    const idx = bins.findIndex(b => m >= b.min && m <= b.max);
+    if (idx >= 0) counts[idx] += 1;
+  });
+
+  const ctx = document.getElementById("latenessChart").getContext("2d");
+  if (latenessChart) latenessChart.destroy();
+
+  latenessChart = new Chart(ctx, {
+    type:"bar",
+    data:{
+      labels: bins.map(b=>b.name),
+      datasets:[
+        { label:"Количество опозданий", data: counts }
+      ]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      scales:{ y:{ beginAtZero:true } }
+    }
+  });
+}
+
+/* =======================
+   Main run
+======================= */
+function runAnalysis(){
+  if (!allData || !allData.length){
+    toast("Сначала загрузите файл", "err");
+    return;
+  }
+
+  const { start, end } = getDateRange();
+
+  // If user didn't set date filters, we still allow analysis on all data
+  const base = preprocessAllRows();
+  let rows = base;
+
+  // date filter if provided
+  if (start && end){
+    rows = applyDateFilter(rows, start, end);
+  }
+
+  // advanced filters + drilldown
+  rows = applyAdvancedFilters(rows);
+
+  // render
+  document.getElementById("output").style.display = "block";
+  setDrillLabel();
+
+  const stats = getStats(rows);
+  buildGeneralStatsUI(stats, start, end);
+
+  buildHourlyChart(rows);
+  buildLatenessChart(rows);
+  buildDayOfWeekTable(rows);
+  buildCourierRating(rows);
+  buildPhasesTable(getPhaseStats(rows));
+
+  // title
+  const title = document.getElementById("stats-title");
+  title.textContent = "📋 Сводная статистика" + (activeDrilldownCourier ? ` — ${activeDrilldownCourier}` : "");
+
+  // If nothing
+  if (!rows.length){
+    toast("Нет данных по выбранным фильтрам", "err");
+  }
+}
+
+/* =======================
+   Export couriers CSV
+======================= */
+function exportCouriers(){
+  if (!courierData || !courierData.length){
+    toast("Нет данных рейтинга курьеров для экспорта", "err");
+    return;
+  }
+  const headers = ["Курьер","Доставок","Опоздали %","Сборка (ср, мин)","Путь (ср, мин)"];
+  const lines = [headers.join(";")];
+
+  courierData.forEach(c=>{
+    lines.push([
+      c.name,
+      c.total,
+      c.latePct,
+      c.kitchen === "Нет данных" ? "" : c.kitchen,
+      c.travel === "Нет данных" ? "" : c.travel
+    ].join(";"));
+  });
+
+  downloadTextFile(`courier_rating_${new Date().toISOString().slice(0,10)}.csv`, lines.join("\n"));
+  toast("CSV рейтинга курьеров скачан", "ok");
+}
+
+/* =======================
+   Export daily TXT summaries
+======================= */
+function buildDailyTxtReport(dateKey, dayRows){
+  const stats = getStats(dayRows);
+  const phase = getPhaseStats(dayRows);
+
+  const typeFilter = document.getElementById("type-filter").value;
+  const latenessFilter = document.getElementById("lateness-filter").value;
+  const drill = activeDrilldownCourier ? activeDrilldownCourier : "нет";
+
+  const lines = [];
+  lines.push(`Сводная статистика за день: ${dateKey}`);
+  lines.push(`Фильтры: тип=${typeFilter}, опоздание=${latenessFilter}, drilldown(курьер)=${drill}`);
+  lines.push(`==================================================`);
+  lines.push(`Всего заказов: ${stats.total}`);
+  lines.push(`Доставка: ${stats.delivery}`);
+  lines.push(`Самовывоз: ${stats.pickup}`);
+  lines.push(`Опоздали: ${stats.latePct}%`);
+  lines.push(`Сборка заказа (среднее): ${stats.kitchen} мин`);
+  lines.push(`Путь курьера (среднее): ${stats.travel} мин`);
+  lines.push(`--------------------------------------------------`);
+  lines.push(`Фазы (среднее):`);
+  lines.push(`Готовка блюд: ${phase.prepTime} мин`);
+  lines.push(`Ожидание курьера: ${phase.courierWait} мин`);
+  lines.push(`Вся сборка заказа: ${phase.totalKitchen} мин`);
+  lines.push(`Путь курьера: ${phase.travelTime} мин`);
+  lines.push(`Своевременность доставки (только доставка): ${phase.onTimeDeliveryPct}% вовремя`);
+  lines.push(`==================================================`);
+  lines.push(`Сгенерировано: ${new Date().toLocaleString("ru-RU")}`);
+
+  return lines.join("\n");
+}
+
+function downloadTextFile(filename, content){
+  const blob = new Blob([content], { type:"text/plain;charset=utf-8;" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(a.href);
+}
+
+function getDailyStats(dayRows){
+  const total = dayRows.length;
+
+  const deliveryRows = dayRows.filter(r => r.isCourier);
+  const pickupRows = dayRows.filter(r => !r.isCourier);
+
+  const delivery = deliveryRows.length;
+  const pickup = pickupRows.length;
+
+  const lateDelivery = deliveryRows.filter(r => r.isLate).length;
+  const latePickup = pickupRows.filter(r => r.isLate).length;
+
+  const avgKitchen = getAverage(dayRows.map(r => r.totalKitchenTime)); // accepted → handedOver
+  const avgTravel = getAverage(deliveryRows.map(r => r.travelTime));   // handedOver → delivered (только доставка)
+
+  return { total, delivery, pickup, lateDelivery, latePickup, avgKitchen, avgTravel };
+}
+
+function buildSingleTxtReportByDays(daysSorted, mapByDay){
+  const typeFilter = document.getElementById("type-filter")?.value || "all";
+  const latenessFilter = document.getElementById("lateness-filter")?.value || "all";
+  const drill = activeDrilldownCourier ? activeDrilldownCourier : "нет";
+
+  const lines = [];
+  lines.push(`Сводная статистика по дням`);
+  lines.push(`Фильтры: тип=${typeFilter}, опоздание=${latenessFilter}, drilldown(курьер)=${drill}`);
+  lines.push(`Дата отчёта: ${new Date().toLocaleString("ru-RU")}`);
+  lines.push(`============================================================`);
+  lines.push(``);
+
+  daysSorted.forEach((dayKey) => {
+    const dayRows = mapByDay.get(dayKey) || [];
+    const s = getDailyStats(dayRows);
+
+    // Проценты по опозданиям (приятно для чтения, но “ядро” — это количества)
+    const lateDeliveryPct = s.delivery ? Math.round((s.lateDelivery / s.delivery) * 100) : 0;
+    const latePickupPct = s.pickup ? Math.round((s.latePickup / s.pickup) * 100) : 0;
+
+    lines.push(`📅 ${dayKey}`);
+    lines.push(`  Всего заказов: ${s.total}`);
+    lines.push(`  Доставка: ${s.delivery}`);
+    lines.push(`  Самовывоз: ${s.pickup}`);
+    lines.push(`  Опоздали (доставка): ${s.lateDelivery} (${lateDeliveryPct}%)`);
+    lines.push(`  Опоздали (самовывоз): ${s.latePickup} (${latePickupPct}%)`);
+    lines.push(`  Сборка заказов (среднее): ${s.avgKitchen} мин`);
+    lines.push(`  Путь курьера (среднее): ${s.avgTravel} мин`);
+    lines.push(`------------------------------------------------------------`);
+  });
+
+  return lines.join("\n");
+}
+
+// Если у тебя уже есть downloadTextFile() — не дублируй, оставь одну версию
+function downloadTextFile(filename, content){
+  const blob = new Blob([content], { type:"text/plain;charset=utf-8;" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(a.href);
+}
+
+function exportDailySummaryTxt(){
+  if (!allData || !allData.length){
+    toast("Сначала загрузите файл", "err");
+    return;
+  }
+
+  // Экспортируем по всем дням, поэтому НЕ применяем фильтр day/period,
+  // но применяем advanced-фильтры и drilldown (если есть).
+  const base = preprocessAllRows();
+  const filtered = applyAdvancedFilters(base);
+
+  if (!filtered.length){
+    toast("Нет данных для выгрузки с учетом выбранных фильтров", "err");
+    return;
+  }
+
+  // Группируем по дате accepted (Принятие заказа в ресторане)
+  const mapByDay = new Map();
+  filtered.forEach(r=>{
+    const dayKey = formatYMD(r.accepted);
+    if (!mapByDay.has(dayKey)) mapByDay.set(dayKey, []);
+    mapByDay.get(dayKey).push(r);
+  });
+
+  const daysSorted = Array.from(mapByDay.keys()).sort();
+  if (!daysSorted.length){
+    toast("Не найдено ни одного дня для выгрузки", "err");
+    return;
+  }
+
+  const txt = buildSingleTxtReportByDays(daysSorted, mapByDay);
+
+  const today = new Date().toISOString().slice(0,10);
+  const filename = `summary_by_days_${today}.txt`;
+  downloadTextFile(filename, txt);
+
+  toast("Единый TXT отчёт по дням скачан", "ok");
+}
+  
+function exportDailySummaryTxt(){
+  if (!allData || !allData.length){
+    toast("Сначала загрузите файл", "err");
+    return;
+  }
+
+  // ВАЖНО: экспорт по дням не должен зависеть от выбранного фильтра даты (день/период),
+  // иначе ты не получишь "все дни". Зато учитываем advanced-фильтры и drilldown.
+  const base = preprocessAllRows();
+  const filtered = applyAdvancedFilters(base);
+
+  if (!filtered.length){
+    toast("Нет данных для выгрузки с учетом выбранных фильтров", "err");
+    return;
+  }
+
+  // group by accepted date (day)
+  const byDay = new Map();
+  filtered.forEach(r=>{
+    const key = formatYMD(r.accepted);
+    if (!byDay.has(key)) byDay.set(key, []);
+    byDay.get(key).push(r);
+  });
+
+  const days = Array.from(byDay.keys()).sort();
+  if (!days.length){
+    toast("Не найдено ни одного дня для выгрузки", "err");
+    return;
+  }
+
+  toast(`Начинаю выгрузку: файлов ${days.length}`, "ok", 2500);
+
+  // small delay between downloads so browser doesn't block
+  days.forEach((dayKey, idx)=>{
+    const dayRows = byDay.get(dayKey);
+    const txt = buildDailyTxtReport(dayKey, dayRows);
+    const filename = `summary_${dayKey}.txt`;
+    setTimeout(()=>downloadTextFile(filename, txt), idx * 250);
+  });
+}
+
+/* =======================
+   Init defaults (UX)
+======================= */
+toggleMode();
+setDrillLabel();
+setEnabled(false);
+setStatus("Нет данных");
+</script>
+
+</body>
+</html>
